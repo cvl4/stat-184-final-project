@@ -1,0 +1,159 @@
+---
+title: "STAT 184 Final Project"
+author: "Calvin Lien"
+date: "December 16, 2019"
+output: html_notebook
+---
+### Introduction
+
+I decided to do my final project on the Philadelphia 76ers because I want to analyze the NBA team that I support. I want to do a basic analysis on whether or not a correlation exists between how our star player, Joel Embiid, does on field goal percentage in a game and the margin of victory or loss of that game. As a 76ers fan, I love watching Embiid play and I expect him to have a big game every time he plays. When his shots are going in, the team seemingly prospers. When his shots are not, the team struggles. Also, he shoots a lot every game, so it is fair to test his field goal percentage. I used the 2018-19 regular season games that Embiid has played to do this analysis. I got my data from BasketballReference, a well-known sports data site. I gathered two tables from the site. One table is the "Joel Embiid 2018-19 Game Log" and the other is the "2018-19 Philadelphia 76ers Schedule and Results". Again, I used the reguar season version of these tables. The postseason games have a different intensity and I feel the data would be skewed if I included it. I imported the tables into Rstudio and then got rid of the variables I did not need. I then joined the tables into one and used that table to create a visual representation to test the correlation.
+
+### Data Access
+
+1) Access to source data (minimum of TWO data sources, primary source CANNOT be an R data set, but secondary source can) is contained within the analysis.
+```{r}
+# I load all packages to complete the project.
+library(DataComputing)
+library(dplyr)
+library(rvest)
+library(readr)
+library(lubridate)
+library(ggplot2)
+library(mosaic)
+
+# I imported the raw dataset with Embiid's statistics.
+E <- read_csv('Embiid.csv')
+View(E)
+
+# I imported raw dataset with the team's regular season.
+RS <- read_csv("RegularSeason.csv")
+View(RS)
+```
+
+2) Imported data is inspected at beginning of analysis using one or more R functions: e.g., str, glimpse, head, tail, names, nrow, etc.
+```{r}
+# Inspected imported data
+str(E)
+str(RS)
+```
+
+### Data Wrangling
+
+Students need not use every function and method introduced in STAT 184, but clear demonstration of proficiency should include proper use of 5 out of the following 8 topics from class: (+) various data verbs like filter, mutate, summarise, arrange, group_by, etc. (+) joins for multiple data tables. (+) spread & gather to stack/unstack variables (+) regular expressions (+) reduction and/or transformation functions like mean, sum, max, min, n(), rank, pmin, etc. (+) user-defined functions (+) loops and control flow (+) machine learning.
+
+```{r}
+# I made the Embiid table glyph-ready and join-ready.
+Embiid <-
+  E %>%
+  group_by(G) %>%
+  mutate(FGpct = FG / FGA) %>%
+  select(Date, G, FGpct) %>%
+  na.omit()
+Embiid
+
+# I used this function to find the mean field-goal percentage. This is used to compare various points on the graph.
+summary(Embiid)
+
+# I filtered out the Embiid data frame to get data for only his away games.
+EmbiidAway <-
+  RS %>%
+  rename(Location = X5) %>%
+  filter(grepl("@", Location, ignore.case = TRUE)) %>%
+  select(Location, G)
+
+E <- read.table('Embiid.csv', sep=',', header=T)
+Elocation <-
+  E %>%
+  mutate(location = ifelse(E$X == "@", "away", "home")) %>%
+  select(G, location)
+View(Elocation)
+
+# I made the regular season table glyph-ready and join-ready.
+RegularSeason <-
+  RS %>%
+  arrange(G) %>%
+  mutate(margin = Tm - Opp) %>%
+  select(G, margin)
+
+# I used the summary function to find the mean win/loss. This allows me to compare various points on the graph.
+summary(RegularSeason)
+
+# I joined the regular season with the home and away games. Now, RegularSeason has the location.
+RegularSeasonHA <-
+  Elocation %>%
+  inner_join(RegularSeason)
+View(RegularSeasonHA)
+
+# I joined the two join-ready tables, Embiid and RegularSeason, and displayed it.
+FinalTable <-
+  Embiid %>%
+  left_join(RegularSeasonHA) %>%
+  arrange(FGpct)
+FinalTable
+
+# I joined the table above with the EmbiidAway table to add analysis to home and away games.
+FinTable <-
+  EmbiidAway %>%
+  left_join(Embiid) %>%
+  na.omit()
+
+# This is the final join, with all the relevant cases and variables needed to do the data visualization part of this project.
+Testing <-
+  FinalTable %>%
+  left_join(Embiid) %>%
+  arrange(FGpct)
+
+# This displays the ultimate glyph-ready table.
+Testing
+  
+```
+
+### Data Visualization
+
+Students need not use every function and method introduced in STAT 184, but clear demonstration of proficiency should include a range of useful of data visualizations that are (*1*) relevant to purpose of the analysis, (*2*) include at least one effective display of many--3 or more--variables, and (*3*) include 3 of the following 6 visualization techniques learned in STAT 184: (+) use of multiple geoms such as points, density, lines, segments, boxplots, bar charts, histograms, etc (+) use of multiple aesthetics--not necessarily all in the same graph--such as color, size, shape, x/y position, facets, etc (+) layered graphics such as points and accompanying smoother, points and accompanying boxplots, overlaid density distributions, etc (+) choropleth maps, (+) leaflet maps (+) decision tree and/or dendogram displaying machine learning model outcome(s).
+```{r}
+# The code below analyzes the work done after all the data wrangling done above. The data visualization here uses the result of the joined tables with the relevant information. I plotted the field goal percentage against the margin of win or loss to see if a correlation exists between Joel Embiid's field goal percentage and the team's margin of victory or defeat. I also put the average of the two axes for reference. Here, after using the reduction functions, we find that Embiid's overall field goal percentage is 0.4885. The average win/loss margin is 2.695. For the "AllGamesGraph", I put all the games that Embiid has played in the 2018-19 regular season in one plot. With no coursework on linear regression done, I see that a very weak negative correlation exists.
+
+AllGamesGraph <-
+  Testing %>%
+    ggplot(aes(x = FGpct, y = margin)) +
+    geom_point(aes(color = location)) +
+    geom_smooth(method = lm) +
+    geom_vline(xintercept = 0.4885) +
+    geom_hline(yintercept = 2.695) +
+    xlab("Field Goal Percentage") +
+    ylab("Margin of Win/Loss")
+AllGamesGraph
+
+# The 'FacetedGraph' is, as the name suggests, the graph above but faceted based on location. It is known that Embiid loves his home fans, so this might assume that a positive correlation should exist. Well, it really ended up being very close. The only major difference is that the team overall does better with home games than away games. The line of best fit only shifts downward for away games. In my opinion, this graph allows me to make a weak conclusion that the team's winning margin goes down as Embiid shoots better. The additional smoothing allows me to see the range of field goal percentages. Embiid has a wider range at home than away, but tends to shoot better at home. Back to the overall analysis, the negative correlation might suggest that the other players on the team might be having a bad game offensively in games where they do not blow out their opponents. In these games, they might be relying on Embiid to have a monster performance. In basketball, a player cannot carry their team (unless that player is LeBron James), so the team needs to do well to win a game. More in-deph analysis in the project is possible if we want to be more complex. For example, we could look at the opposing team's power index as a factor. This project is looking at every opponent equally. However, it is much more likely that Embiid will have a monster performance against the team below a 0.500 record than a team above it. The Los Angeles Clippers, for example, are not on the same level defensively as the New York Knicks. Also, when Embiid does not shoot well, this might allow the rest of the team to collectively score more points. This would increase the points scored, or hopefully, the margin of victory assuming the opposing team did not score as much. Overall, Embiid's field goal percentage is not a good metric to compare the team's margin of victory or defeat. A better statistic to use would be his plus-minus statistic, which accounts for the net changes in score when he is either on or off the court. It was interesting to see how one of Embiid's offensive statistics compare to the team's margin of win or loss, however.
+
+FacetedGraph <-
+  Testing %>%
+    ggplot(aes(x = FGpct, y = margin)) +
+    facet_wrap(. ~ location) +
+    geom_point(aes(color = location)) +
+    geom_smooth(method = lm) +
+    geom_vline(xintercept = 0.4885) +
+    geom_hline(yintercept = 2.695) +
+    xlab("Field Goal Percentage") +
+    ylab("Margin of Win/Loss")
+FacetedGraph
+```
+
+### Code Quality
+
+Code demonstrates proficiency with (1) meaningful object names (2) proper use of white space especially with respect to infix operators, chain operators, commas, brackets/parens, etc (3) use of `<-` assignment operator throughout (4) use of meaningful comments.
+
+### Narrative Quality
+
+The narrative text (1) motivates the overall analysis (2) explains reasoning for each significant step in the analysis (3) explains significant findings and conclusions (4) is free of errors in spelling and grammar.
+
+### Overall Quality
+
+(1) Submitted project shows significant effort to produce a high-quality and thoughtful analysis that showcases STAT 184 skills through one or more interesting data sets. (2) The project should be self-contained, such that the analysis can be entirely rerun without errors. (3) Analysis is coherent and well-organized.
+
+### EXTRA CREDIT: GitHub Webpage
+
+(1) Project is submitted as a self-contained GitHub Repo (2) project submission is a functioning webpage associated to the Repo. Note: a link to the GitHub Repo itself is worth partial credit, but does not itself qualify as a "webpage" of the analysis deserving of full credit.
+
+*https://github.com/cvl4/stat-184-final-project*
